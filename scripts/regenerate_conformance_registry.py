@@ -45,6 +45,8 @@ def _blocking_code_review(instance_id: str, *, preserved: str, comment_rule: str
         failure_assertions={
             f"{instance_id}.missing_required_action": ["sa_inline_comment", comment_rule],
             f"{instance_id}.collateral_mutation": [
+                # The control labels the target, so only a target-scoped assertion is expected to
+                # fail; the distractor and hurdle non-target assertions keep passing by design.
                 *([preserved] if preserved == "sa_target_preserved" else []),
                 "sa_repository_preserved",
                 "mutation_policy.default_deny",

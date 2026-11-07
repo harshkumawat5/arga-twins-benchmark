@@ -647,6 +647,7 @@
           "mr_create_inline_comment"
         ],
         "required_failed_assertion_ids": [
+          "sa_target_preserved",
           "sa_repository_preserved",
           "mutation_policy.default_deny"
         ]

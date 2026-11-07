@@ -14,7 +14,10 @@ from arga_twins_benchmark.conformance.registry import (
     catalog_verifier_bundles,
     execute_fixture_case,
     load_conformance_registry,
+    registry_entry_template,
 )
+from arga_twins_benchmark.evaluation.admin_delta_claims import AdminDeltaClaimError
+from arga_twins_benchmark.evaluation.state_capture import StateCaptureError
 
 CATALOG_ROOT = Path("benchmark")
 REGISTRY = CATALOG_ROOT / "conformance" / "registry.json"
@@ -89,6 +92,7 @@ def test_wrong_target_is_registered_pending_with_its_defect(instance_id: str) ->
 
 @pytest.mark.xfail(
     strict=True,
+    raises=(AdminDeltaClaimError, StateCaptureError),
     reason=(
         "A review on a non-target pull request is visible only through the trusted GitHub review "
         "total; grading raises a state-evidence error instead of failing the trial."
@@ -105,3 +109,47 @@ def test_wrong_target_review_fails_as_collateral_damage(variant: Any) -> None:
     result = execute_fixture_case(bundle=bundle, fixture_bundle=fixture, fixture_case=case)
 
     assert result.passed
+
+
+def test_builder_creates_a_missing_output_directory(tmp_path: Path) -> None:
+    target = tmp_path / "fresh" / "fixtures"
+
+    assert builder.main(["--output-dir", str(target)]) == 0
+
+    assert sorted(path.name for path in target.iterdir()) == sorted(
+        f"{variant.fixture_name}.json" for variant in builder.VARIANTS
+    )
+    assert builder.main(["--output-dir", str(target), "--check"]) == 0
+
+
+def test_clean_collateral_control_pins_the_target_scoped_assertion() -> None:
+    (clean,) = [variant for variant in builder.VARIANTS if variant.instance_id.endswith("clean_001")]
+    fixture = builder.build_fixture(clean, CATALOG_ROOT)
+    (case,) = [item for item in fixture["cases"] if item["case_id"].endswith(".collateral_mutation")]
+
+    assert "sa_target_preserved" in case["expected"]["required_failed_assertion_ids"]
+
+
+def test_registry_template_rejects_pending_reasons_that_match_no_pending_case() -> None:
+    instance_id = VARIANT_IDS[0]
+    bundle = catalog_verifier_bundles(CATALOG_ROOT)[instance_id]
+    executable = {
+        f"{instance_id}.gold",
+        f"{instance_id}.gold.semantic_equivalent",
+        f"{instance_id}.collateral_mutation",
+    }
+
+    def template(pending_reasons: dict[str, str]) -> dict[str, object]:
+        return registry_entry_template(
+            instance_id=instance_id,
+            verification=bundle.verification,
+            instance_bundle_sha256=bundle.instance_bundle_sha256,
+            evaluator_fixture_case_ids=executable,
+            intended_failure_assertions={},
+            pending_reasons=pending_reasons,
+        )
+
+    template({f"{instance_id}.wrong_target": "pinned"})
+    for bad_key in (f"{instance_id}.wrong_targt", f"{instance_id}.collateral_mutation"):
+        with pytest.raises(ValueError, match="pending_reasons"):
+            template({bad_key: "dropped silently"})

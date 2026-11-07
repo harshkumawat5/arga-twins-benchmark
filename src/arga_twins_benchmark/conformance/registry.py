@@ -729,7 +729,21 @@ def registry_entry_template(
     negative_collateral_expectations: dict[str, bool] | None = None,
     pending_reasons: dict[str, str] | None = None,
 ) -> dict[str, object]:
-    """Return the deterministic checked-in registry representation for one verifier."""
+    """Return the deterministic checked-in registry representation for one verifier.
+
+    ``pending_reasons`` maps a pending case id to the reason it has no evidence yet. Every key must
+    name a declared case without an evaluator fixture, otherwise the override would be dropped
+    silently, so an unmatched key raises ``ValueError``.
+    """
+
+    pending_case_ids = {
+        verification.gold_solution_id,
+        f"{verification.gold_solution_id}.semantic_equivalent",
+        *verification.negative_control_ids,
+    } - evaluator_fixture_case_ids
+    unmatched = sorted(set(pending_reasons or {}) - pending_case_ids)
+    if unmatched:
+        raise ValueError(f"pending_reasons keys do not name a pending declared case: {unmatched}")
 
     def case(
         *,

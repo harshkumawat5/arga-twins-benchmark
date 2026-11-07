@@ -85,12 +85,16 @@ baselines are derived from the checked-in seeds by
 detect drift.
 
 The three `wrong_target` controls remain `pending` because of an evaluator
-defect. None of these verifiers reads review state for non-target pull
-requests, so a blocking review on the wrong pull request is visible only
-through the trusted GitHub `summary.repos[].reviews` total. Grading cannot
-attribute that increment and raises `AdminDeltaClaimError` (clean, operational
-hurdle) or `StateCaptureError` (distractor), which the semantic grader records
-as `invalid_grader` instead of a failing trial. A strict xfail in
+defect. The clean and operational-hurdle verifiers snapshot reviews only for
+the target pull request, so a blocking review on the wrong pull request is
+visible only through the trusted GitHub `summary.repos[].reviews` total.
+Grading cannot attribute that increment and raises `AdminDeltaClaimError`.
+The distractor also reads the all-pulls artifact (`sq_non_target_artifacts`),
+but that artifact is enriched only from the per-pull review snapshots it has
+(the target's), and enrichment requires the trusted review total to equal the
+snapshotted reviews. The extra review breaks that equality, so it raises
+`StateCaptureError`. The semantic grader records either error as
+`invalid_grader` instead of a failing trial. A strict xfail in
 `tests/unit/conformance/test_blocking_code_review_fixtures.py` pins this
 behavior, so fixing it forces the registry update.
 
